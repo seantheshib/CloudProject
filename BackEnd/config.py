@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str
     AWS_REGION: str
     S3_BUCKET_NAME: str
+    DYNAMO_TABLE_NAME: str
 
     # Cognito Configuration
     COGNITO_REGION: str

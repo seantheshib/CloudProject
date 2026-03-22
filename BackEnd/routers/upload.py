@@ -3,7 +3,7 @@ from typing import Dict, Any
 from auth.cognito import get_current_user
 from services.s3_service import upload_file_to_s3
 from services.exif_service import extract_exif_metadata
-from datetime import datetime, timezone
+from services.dynamo_service import save_image_metadata
 import io
 import logging
 
@@ -39,16 +39,33 @@ async def upload_photo(
             content_type=file.content_type
         )
         
-        # 4. Return combined response
+        # 4. Save to DynamoDB
+        try:
+            save_image_metadata(
+                image_id=file_key,
+                user_id=user_id,
+                date_taken=metadata.get("date_taken"),
+                gps_lat=metadata.get("gps_lat"),
+                gps_lon=metadata.get("gps_lon")
+            )
+        except Exception as e:
+            # Catch DynamoDB exceptions gracefully so the S3 successful upload response triggers
+            logger.warning(f"DynamoDB metadata saving skipped for {file_key} due to error: {e}")
+            pass
+            
+        # 5. Return Combined Payload exactly as requested
         return {
             "file_key": file_key,
-            "presigned_url": presigned_url,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            "metadata": metadata
+            "message": "Upload successful",
+            "metadata": {
+                "date_taken": metadata.get("date_taken"),
+                "gps_lat": metadata.get("gps_lat"),
+                "gps_lon": metadata.get("gps_lon")
+            }
         }
         
     except HTTPException:
-        # Re-raise HTTPExceptions without hiding them
+        # Re-raise standard web exceptions seamlessly
         raise
     except Exception as e:
         logger.error(f"Failed to process upload: {e}")
