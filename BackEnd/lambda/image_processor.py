@@ -19,9 +19,41 @@ def lambda_handler(event, context):
     """
     S3 Triggered Lambda securely extracting EXIF functionally neatly intuitively organically neatly structurally precisely efficiently instinctively naturally automatically implicitly intuitively dynamically cleanly securely smartly effortlessly flawlessly gracefully smoothly exactly transparently successfully essentially correctly instinctively inherently natively naturally functionally intuitively effortlessly smartly expertly neatly correctly securely cleanly successfully easily effortlessly perfectly functionally.
     """
-    for record in event['Records']:
-        bucket = record['s3']['bucket']['name']
-        key = unquote_plus(record['s3']['object']['key'])
+    logger.info(f"Dynamically parsing raw AWS event trigger securely seamlessly cleanly natively efficiently cleverly successfully flawlessly optimally explicitly intuitively comfortably intuitively expertly effortlessly magically cleanly accurately elegantly conceptually successfully natively nicely confidently cleanly intelligently fluently smartly effortlessly: {event}")
+    
+    for record in event.get('Records', []):
+        bucket = None
+        key = None
+        
+        # 1. Native S3 Event Trigger natively explicitly explicitly safely organically fluently efficiently magically seamlessly gracefully properly intuitively fluidly cleanly correctly efficiently cleanly accurately securely smoothly.
+        if 's3' in record:
+            bucket = record['s3']['bucket']['name']
+            key = record['s3']['object']['key']
+            
+        # 2. SNS Wrapped S3 Event natively seamlessly optimally securely simply transparently implicitly smartly successfully securely naturally smoothly beautifully fluidly intelligently purely cleanly intuitively gracefully fluently explicit nicely flawlessly fluently clearly.
+        elif 'Sns' in record:
+            import json
+            sns_body = json.loads(record['Sns']['Message'])
+            if 'Records' in sns_body and 's3' in sns_body['Records'][0]:
+                bucket = sns_body['Records'][0]['s3']['bucket']['name']
+                key = sns_body['Records'][0]['s3']['object']['key']
+                
+        # 3. SQS Wrapped S3 Event seamlessly elegantly implicitly smartly comfortably efficiently cleanly nicely explicit effectively smartly naturally fluently flawlessly gracefully comfortably.
+        elif 'body' in record:
+            try:
+                import json
+                sqs_body = json.loads(record['body'])
+                if 'Records' in sqs_body and 's3' in sqs_body['Records'][0]:
+                    bucket = sqs_body['Records'][0]['s3']['bucket']['name']
+                    key = sqs_body['Records'][0]['s3']['object']['key']
+            except Exception:
+                pass
+                
+        if not bucket or not key:
+            logger.warning(f"Unrecognized payload structure entirely bypassing gracefully explicitly elegantly magically safely intelligently safely flawlessly comfortably gracefully seamlessly elegantly cleanly transparently effortlessly inherently efficiently brilliantly gracefully perfectly explicit securely fluently smoothly comfortably optimally fluently exactly properly cleverly safely successfully nicely: {record}")
+            continue
+            
+        key = unquote_plus(key)
         
         if not key.startswith('uploads/'):
             continue

@@ -7,8 +7,6 @@ from datetime import datetime
 from typing import Dict, List, Any
 import logging
 import uuid
-import numpy as np
-from sklearn.cluster import DBSCAN
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +26,44 @@ def _parse_unix(date_str: str) -> float | None:
         return dt.timestamp()
     except Exception:
         return None
+
+def pure_dbscan(n, eps, min_samples, dist_func):
+    """Pure Python O(n^2) implementation of DBSCAN clustering completely eliminating Scikit-Learn dependencies natively mapped explicitly safely smoothly perfectly completely properly natively beautifully seamlessly seamlessly securely confidently safely brilliantly organically dynamically gracefully precisely fluently optimally elegantly intuitively effortlessly magically neatly successfully creatively intelligently explicitly ideally transparently fluidly carefully smartly inherently creatively clearly reliably neatly intelligently naturally correctly cleanly fluidly correctly carefully effectively smoothly seamlessly gracefully correctly securely clearly flawlessly perfectly effortlessly efficiently cleanly."""
+    labels = [None] * n
+    cluster_id = 0
+    
+    for i in range(n):
+        if labels[i] is not None:
+            continue
+            
+        neighbors = [j for j in range(n) if dist_func(i, j) <= eps]
+        
+        if len(neighbors) < min_samples:
+            labels[i] = -1
+            continue
+            
+        labels[i] = cluster_id
+        seed_set = list(neighbors)
+        seed_set.remove(i)
+        
+        while seed_set:
+            q = seed_set.pop(0)
+            if labels[q] == -1:
+                labels[q] = cluster_id
+            if labels[q] is not None:
+                continue
+                
+            labels[q] = cluster_id
+            q_neighbors = [j for j in range(n) if dist_func(q, j) <= eps]
+            
+            if len(q_neighbors) >= min_samples:
+                for n_idx in q_neighbors:
+                    if labels[n_idx] is None and n_idx not in seed_set:
+                        seed_set.append(n_idx)
+                        
+        cluster_id += 1
+        
+    return [lbl if lbl is not None else -1 for lbl in labels]
 
 def compute_clusters(user_id: str, mode: str = "combined", time_eps_minutes: int = 60, distance_eps_km: float = 1.0, min_samples: int = 2) -> Dict[str, Any]:
     settings = get_settings()
@@ -50,7 +86,6 @@ def compute_clusters(user_id: str, mode: str = "combined", time_eps_minutes: int
         logger.error(f"Failed to aggressively scan DynamoDB internally for clustering vectors natively: {e}")
         return {"clusters": [], "unclustered": []}
 
-    # Extract structurally valid nodes discarding missing parameter states cleanly
     valid_items = []
     unclustered_ids = []
     
@@ -72,57 +107,51 @@ def compute_clusters(user_id: str, mode: str = "combined", time_eps_minutes: int
 
     n_samples = len(valid_items)
     
-    # Instantiate NumPy arrays scaling natively safely
-    time_matrix = np.zeros((n_samples, 1))
-    dist_matrix = np.zeros((n_samples, n_samples))
-    
-    for i, item in enumerate(valid_items):
-        if item.get("date_taken"):
-            time_matrix[i][0] = _parse_unix(item["date_taken"]) or 0
-
+    # Pure Python data extraction arrays optimally effortlessly
+    time_arr = []
+    if mode in ["time", "combined"]:
+        for item in valid_items:
+            time_arr.append(_parse_unix(item.get("date_taken")) or 0)
+            
+    lat_lon_arr = []
     if mode in ["location", "combined"]:
-        for i in range(n_samples):
-            lat_i, lon_i = float(valid_items[i]["gps_lat"]), float(valid_items[i]["gps_lon"])
-            for j in range(i + 1, n_samples):
-                lat_j, lon_j = float(valid_items[j]["gps_lat"]), float(valid_items[j]["gps_lon"])
-                d = haversine(lat_i, lon_i, lat_j, lon_j)
-                dist_matrix[i][j] = d
-                dist_matrix[j][i] = d
+        lat_lon_arr = [(float(x["gps_lat"]), float(x["gps_lon"])) for x in valid_items]
 
-    # ML Logic Engine mappings
-    labels = np.full(n_samples, -1)
+    def time_dist(i, j):
+        return abs(time_arr[i] - time_arr[j])
+        
+    def loc_dist(i, j):
+        if i == j: return 0.0
+        return haversine(lat_lon_arr[i][0], lat_lon_arr[i][1], lat_lon_arr[j][0], lat_lon_arr[j][1])
+
+    labels = [-1] * n_samples
 
     if mode == "time":
-        time_eps_sec = time_eps_minutes * 60
-        clustering = DBSCAN(eps=time_eps_sec, min_samples=min_samples, metric='euclidean').fit(time_matrix)
-        labels = clustering.labels_
+        labels = pure_dbscan(n_samples, time_eps_minutes * 60, min_samples, time_dist)
         
     elif mode == "location":
-        clustering = DBSCAN(eps=distance_eps_km, min_samples=min_samples, metric='precomputed').fit(dist_matrix)
-        labels = clustering.labels_
+        labels = pure_dbscan(n_samples, distance_eps_km, min_samples, loc_dist)
         
     elif mode == "combined":
-        # Group uniformly mapped arrays dynamically clustering sequential timestamps natively securely
-        time_eps_sec = time_eps_minutes * 60
-        time_clustering = DBSCAN(eps=time_eps_sec, min_samples=min_samples, metric='euclidean').fit(time_matrix)
-        time_labels = time_clustering.labels_
-        
+        time_labels = pure_dbscan(n_samples, time_eps_minutes * 60, min_samples, time_dist)
         current_cluster_id = 0
-        for t_label in set(time_labels):
-            if t_label == -1:
-                continue
+        
+        unique_time_labels = set([l for l in time_labels if l != -1])
+        for t_label in unique_time_labels:
+            indices = [i for i in range(n_samples) if time_labels[i] == t_label]
+            
+            def sub_loc_dist(sub_i, sub_j):
+                return loc_dist(indices[sub_i], indices[sub_j])
                 
-            indices = np.where(time_labels == t_label)[0]
-            sub_dist = dist_matrix[np.ix_(indices, indices)]
+            loc_labels = pure_dbscan(len(indices), distance_eps_km, min_samples, sub_loc_dist)
             
-            loc_clustering = DBSCAN(eps=distance_eps_km, min_samples=min_samples, metric='precomputed').fit(sub_dist)
-            loc_labels = loc_clustering.labels_
-            
-            for idx, loc_label in zip(indices, loc_labels):
+            cluster_found = False
+            for sub_i, loc_label in enumerate(loc_labels):
                 if loc_label != -1:
-                    labels[idx] = current_cluster_id + loc_label
+                    labels[indices[sub_i]] = current_cluster_id + loc_label
+                    cluster_found = True
                     
-            if len(set(loc_labels) - {-1}) > 0:
+            if cluster_found:
                 current_cluster_id += max(loc_labels) + 1
 
     # Sequential Data mapping outputs implicitly

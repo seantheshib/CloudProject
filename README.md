@@ -22,9 +22,10 @@ Before anything else, you need a Cognito User Pool to generate the JWT tokens th
 4. Enable **CORS** (Cross-Origin Resource Sharing) in the bucket permissions to allow your frontend URL to read/put files.
 
 ### 3. DynamoDB (Metadata & Caching)
-Run our automated script from your local `BackEnd` folder to instantly provision the `ImageMetadata` and `ClusterResults` tables:
+Run our automated script from your local `BackEnd` folder to instantly provision the `ImageMetadata` and `ClusterResults` tables (natively supporting AWS Academy Query constraints via Composite Keys):
 ```bash
 cd BackEnd
+python scripts/create_dynamo_table.py
 python scripts/setup_lambda_triggers.py
 ```
 
@@ -35,16 +36,17 @@ python scripts/setup_lambda_triggers.py
 Your `BackEnd` directory contains two architectures: the live FastAPI endpoints and the asynchronous AWS Lambda workers.
 
 ### 1. Serverless Lambda Workers
-Our background processors (thumbnails, EXIF extraction, and ML clustering) run on Lambda to keep your UI lightning fast.
-1. **Create 3 empty Lambda functions** in the AWS Console matching exactly these names: `thumbnail_generator`, `image_processor`, and `clustering_processor`. Choose **Python 3.10+** as the runtime.
+Our background processors (thumbnails and EXIF extraction) natively run on Lambda to keep your UI lightning fast, while the heavy Machine Learning clustering runs synchronously on the EC2 server to bypass the 250MB AWS Lambda size limit.
+1. **Create 2 empty Lambda functions** in the AWS Console matching exactly these names: `thumbnail_generator` and `image_processor`. Choose **Python 3.10+** as the runtime.
 2. Give their IAM Execution Roles permission to read/write to S3 and DynamoDB.
-3. Deploy the code from your local machine using our script:
+3. Deploy the code from your local machine using our smart script (which automatically zips lightweight dependencies and uploads via S3):
 ```bash
 cd BackEnd
 chmod +x scripts/deploy_lambda.sh
-./scripts/deploy_lambda.sh
+bash scripts/deploy_lambda.sh
 ```
-4. **Wire the S3 Triggers**: Go back to your S3 Bucket properties -> **Event Notifications**. Create a new event for `s3:ObjectCreated:*` with the prefix `uploads/`, and select your `thumbnail_generator` and `image_processor` Lambdas as the destinations.
+4. **Update the AWS Handlers**: Go into the "Runtime settings" for both Lambdas in the AWS Console and change the **Handler** to `image_processor.lambda_handler` and `thumbnail_generator.lambda_handler` respectively.
+5. **Wire the SNS Topic Hub Triggers**: Go to your S3 Bucket properties -> **Event Notifications**. Create a new event for `s3:ObjectCreated:*` with the prefix `uploads/`, and select an **Amazon SNS Topic** as the destination. Then, go to the Amazon SNS Console and Subscribe both of your Lambdas to that exact topic!
 
 ### 2. FastAPI Core Server (Amazon EC2)
 The main API Server (which serves `/upload`, `/graph`, `/clusters`) needs to be hosted 24/7. **Amazon EC2** is the best option for AWS Academy environments.
