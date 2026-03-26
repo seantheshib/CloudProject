@@ -1,5 +1,5 @@
 import boto3
-from boto3.dynamodb.conditions import Attr
+from boto3.dynamodb.conditions import Key
 from config import get_settings
 from utils.geo import haversine
 from utils.geocode import get_city_name
@@ -36,12 +36,12 @@ def compute_clusters(user_id: str, mode: str = "combined", time_eps_minutes: int
         dynamodb = get_dynamodb_resource()
         table = dynamodb.Table(settings.DYNAMO_TABLE_NAME)
         
-        response = table.scan(FilterExpression=Attr('user_id').eq(user_id))
+        response = table.query(KeyConditionExpression=Key('user_id').eq(user_id))
         items = response.get('Items', [])
         
         while 'LastEvaluatedKey' in response:
-            response = table.scan(
-                FilterExpression=Attr('user_id').eq(user_id),
+            response = table.query(
+                KeyConditionExpression=Key('user_id').eq(user_id),
                 ExclusiveStartKey=response['LastEvaluatedKey']
             )
             items.extend(response.get('Items', []))

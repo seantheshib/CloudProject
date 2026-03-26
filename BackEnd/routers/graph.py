@@ -26,4 +26,4 @@ def get_relationship_graph(
         return graph
     except Exception as e:
         logger.error(f"REST Graph mapping layer crashed fetching elements implicitly: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch and process mapping graph")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch and process mapping graph. internal error: {str(e)}")

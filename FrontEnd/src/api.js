@@ -1,9 +1,9 @@
-export const API_BASE = 'http://localhost:8000/api';
+export const API_BASE = 'http://18.209.61.204:8000/api';
 
 export async function uploadPhoto(token, file) {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const res = await fetch(`${API_BASE}/upload`, {
     method: 'POST',
     headers: {
@@ -45,7 +45,7 @@ export async function getClusters(token, mode = 'combined', timeEps = 60, distEp
       }
     });
     if (!res.ok) throw new Error(await res.text());
-    
+
     const data = await res.json();
     if (data.status === 'processing') {
       // Wait 3 seconds and poll again

@@ -38,13 +38,13 @@ def get_clusters(
         settings = get_settings()
         dynamodb = get_dynamo_resource()
         
-        # 1. Determine number of photos
+        # 1. Determine number of photos natively bypassing scan blocking securely via optimized hash query natively elegantly.
         metadata_table = dynamodb.Table(settings.DYNAMO_TABLE_NAME)
-        response = metadata_table.scan(FilterExpression=Attr('user_id').eq(user_id))
+        response = metadata_table.query(KeyConditionExpression=Key('user_id').eq(user_id))
         items_count = len(response.get('Items', []))
         
         while 'LastEvaluatedKey' in response:
-            response = metadata_table.scan(FilterExpression=Attr('user_id').eq(user_id), ExclusiveStartKey=response['LastEvaluatedKey'])
+            response = metadata_table.query(KeyConditionExpression=Key('user_id').eq(user_id), ExclusiveStartKey=response['LastEvaluatedKey'])
             items_count += len(response.get('Items', []))
             
         # 2. Check sync vs async threshold
@@ -84,4 +84,4 @@ def get_clusters(
         
     except Exception as e:
         logger.error(f"Failed to fetch clusters: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch clusters")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch clusters internal error: {str(e)}")

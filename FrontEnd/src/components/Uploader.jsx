@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { uploadPhoto } from '../api';
 
-export default function Uploader({ token, setToken, onUploadComplete }) {
+export default function Uploader({ token, onUploadComplete, signOut }) {
   const [isOpen, setIsOpen] = useState(false);
   const [files, setFiles] = useState([]);
   const [status, setStatus] = useState('');
@@ -32,19 +32,17 @@ export default function Uploader({ token, setToken, onUploadComplete }) {
 
   return (
     <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 1000, background: 'rgba(20,20,20,0.9)', padding: 15, borderRadius: 8, color: 'white', border: '1px solid #333' }}>
-      <button onClick={() => setIsOpen(!isOpen)} style={{ background: '#333', color: 'white', border: 'none', padding: '5px 10px', borderRadius: 4, cursor: 'pointer' }}>
-        {isOpen ? 'Close Data Panel' : 'Data Panel'}
-      </button>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button onClick={() => setIsOpen(!isOpen)} style={{ background: '#333', color: 'white', border: 'none', padding: '5px 10px', borderRadius: 4, cursor: 'pointer' }}>
+          {isOpen ? 'Close Data Panel' : 'Data Panel'}
+        </button>
+        <button onClick={signOut} style={{ background: 'transparent', color: '#ff6b6b', border: '1px solid #ff6b6b', padding: '5px 10px', borderRadius: 4, cursor: 'pointer' }}>
+          Sign Out
+        </button>
+      </div>
 
       {isOpen && (
         <div style={{ marginTop: 15, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <input 
-            type="password" 
-            placeholder="Cognito Auth Token" 
-            value={token || ''}
-            onChange={e => setToken(e.target.value)}
-            style={{ padding: 6, borderRadius: 4, border: '1px solid #555', background: '#222', color: 'white' }}
-          />
           <input 
             type="file" 
             multiple 

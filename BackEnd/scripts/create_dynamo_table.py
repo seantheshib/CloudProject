@@ -26,11 +26,19 @@ def create_metadata_table():
             TableName=table_name,
             KeySchema=[
                 {
-                    'AttributeName': 'image_id',
+                    'AttributeName': 'user_id',
                     'KeyType': 'HASH'  # Partition key
+                },
+                {
+                    'AttributeName': 'image_id',
+                    'KeyType': 'RANGE' # Sort key
                 }
             ],
             AttributeDefinitions=[
+                {
+                    'AttributeName': 'user_id',
+                    'AttributeType': 'S'
+                },
                 {
                     'AttributeName': 'image_id',
                     'AttributeType': 'S'

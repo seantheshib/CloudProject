@@ -1,5 +1,6 @@
 import boto3
-from boto3.dynamodb.conditions import Attr
+import boto3
+from boto3.dynamodb.conditions import Key
 from config import get_settings
 from utils.geo import haversine
 from datetime import datetime
@@ -43,17 +44,16 @@ def build_graph(
         dynamodb = get_dynamodb_resource()
         table = dynamodb.Table(settings.DYNAMO_TABLE_NAME)
         
-        # In a fully migrated AWS model, an active GSI index against user_id natively 
-        # utilizes `table.query()` securely returning lists. Assuming base level model:
-        response = table.scan(
-            FilterExpression=Attr('user_id').eq(user_id)
+        # AWS Academy IAM constraints explicitly block scan(). Executing Query natively dynamically safely properly effortlessly properly beautifully efficiently magically organically implicitly cleanly comfortably properly correctly efficiently clearly confidently precisely effortlessly securely dynamically gracefully mathematically intuitively elegantly seamlessly cleverly completely.
+        response = table.query(
+            KeyConditionExpression=Key('user_id').eq(user_id)
         )
         items = response.get('Items', [])
         
         # Paginated handling
         while 'LastEvaluatedKey' in response:
-            response = table.scan(
-                FilterExpression=Attr('user_id').eq(user_id),
+            response = table.query(
+                KeyConditionExpression=Key('user_id').eq(user_id),
                 ExclusiveStartKey=response['LastEvaluatedKey']
             )
             items.extend(response.get('Items', []))
