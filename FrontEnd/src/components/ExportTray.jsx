@@ -2,6 +2,13 @@ import React, { forwardRef } from 'react';
 
 const ExportTray = forwardRef(function ExportTray({ items, onRemove, onClear, isDragOver }, ref) {
   const handleExport = () => {
+    const missing = items.filter(item => !item.imageUrl).length;
+    if (missing > 0) {
+      // eslint-disable-next-line no-alert
+      window.alert(
+        `${missing} image${missing !== 1 ? 's are' : ' is'} still loading and will be skipped.`
+      );
+    }
     items.forEach((item) => {
       if (!item.imageUrl) return;
       const a = document.createElement('a');

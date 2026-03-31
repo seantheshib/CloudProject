@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { generateColorsForClusters, getDefaultColor } from '../data/photos';
 import { useForceSimulation } from '../hooks/useForceSimulation';
 import FilterBar from './FilterBar';
@@ -39,6 +39,12 @@ export default function GraphCanvas({ token, refreshTrigger }) {
   const frameRef = useRef(null);
   const colorsRef = useRef([]);
   const sim = useForceSimulation();
+
+  // Keep refs current so async callbacks never close over stale values
+  const photosRef = useRef(photos);
+  const tokenRef = useRef(token);
+  useEffect(() => { photosRef.current = photos; }, [photos]);
+  useEffect(() => { tokenRef.current = token; }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -147,9 +153,10 @@ export default function GraphCanvas({ token, refreshTrigger }) {
     getImageUrl(token, imageId)
       .then(data => {
         imageCache.current.set(imageId, data.presigned_url);
-        // Only apply if this node is still hovered
+        // Use photosRef (not the closed-over photos) so this stays correct
+        // after a data refresh that replaces the photos array.
         setHovered(prev => {
-          if (prev !== null && photos[prev]?.id === imageId) {
+          if (prev !== null && photosRef.current[prev]?.id === imageId) {
             setImageUrl(data.presigned_url);
           }
           return prev;
@@ -266,21 +273,11 @@ export default function GraphCanvas({ token, refreshTrigger }) {
     const my = e.clientY - rect.top;
     setMousePos({ x: mx, y: my });
 
-    if (dragging) {
-      setDragPos({ x: e.clientX, y: e.clientY });
-
-      // Check if over tray
-      const tray = trayRef.current;
-      if (tray) {
-        const trayRect = tray.getBoundingClientRect();
-        const over = e.clientX >= trayRect.left && e.clientX <= trayRect.right &&
-          e.clientY >= trayRect.top && e.clientY <= trayRect.bottom;
-        setIsDragOver(over);
-      }
-      return;
+    // Drag position / tray-over detection is handled by the global window
+    // listener (see the drag useEffect below) so it fires even outside the container.
+    if (!dragging) {
+      setHovered(getNodeAtPos(mx, my));
     }
-
-    setHovered(getNodeAtPos(mx, my));
   }, [dragging, getNodeAtPos]);
 
   const handleMouseLeave = useCallback(() => {
@@ -300,35 +297,80 @@ export default function GraphCanvas({ token, refreshTrigger }) {
     if (!photo) return;
 
     e.preventDefault();
+
+    const cachedImageUrl = imageCache.current.get(photo.id) || null;
+
+    // If the URL isn't cached yet, kick off a fetch immediately so that
+    // by the time the user drops into the tray the URL is (or will be)
+    // available. The callback also heals any tray item already added
+    // without a URL (e.g. a very fast drag-and-drop).
+    if (!cachedImageUrl && tokenRef.current) {
+      getImageUrl(tokenRef.current, photo.id)
+        .then(data => {
+          imageCache.current.set(photo.id, data.presigned_url);
+          setTrayItems(prev =>
+            prev.map(item =>
+              item.id === photo.id && !item.imageUrl
+                ? { ...item, imageUrl: data.presigned_url }
+                : item
+            )
+          );
+        })
+        .catch(console.error);
+    }
+
     setDragging({
       ...photo,
-      imageUrl: imageCache.current.get(photo.id) || null,
+      imageUrl: cachedImageUrl,
     });
     setDragPos({ x: e.clientX, y: e.clientY });
   }, [photos, getNodeAtPos]);
 
-  const handleMouseUp = useCallback((e) => {
+  // Attach global mousemove/mouseup listeners for the duration of a drag so
+  // that releasing (or moving) the mouse outside the container still resolves
+  // correctly and never leaves the UI stuck in a dragging state.
+  useEffect(() => {
     if (!dragging) return;
 
-    const tray = trayRef.current;
-    if (tray) {
-      const trayRect = tray.getBoundingClientRect();
-      const droppedOnTray = e.clientX >= trayRect.left && e.clientX <= trayRect.right &&
-        e.clientY >= trayRect.top && e.clientY <= trayRect.bottom;
-
-      if (droppedOnTray) {
-        setTrayItems(prev => {
-          if (prev.find(p => p.id === dragging.id)) return prev;
-          return [...prev, dragging];
-        });
+    const handleGlobalMouseMove = (e) => {
+      setDragPos({ x: e.clientX, y: e.clientY });
+      const tray = trayRef.current;
+      if (tray) {
+        const r = tray.getBoundingClientRect();
+        setIsDragOver(
+          e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top  && e.clientY <= r.bottom
+        );
       }
-    }
+    };
 
-    setDragging(null);
-    setIsDragOver(false);
+    const handleGlobalMouseUp = (e) => {
+      const tray = trayRef.current;
+      if (tray) {
+        const r = tray.getBoundingClientRect();
+        const droppedOnTray =
+          e.clientX >= r.left && e.clientX <= r.right &&
+          e.clientY >= r.top  && e.clientY <= r.bottom;
+
+        if (droppedOnTray) {
+          setTrayItems(prev => {
+            if (prev.find(p => p.id === dragging.id)) return prev;
+            return [...prev, dragging];
+          });
+        }
+      }
+      setDragging(null);
+      setIsDragOver(false);
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup',   handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup',   handleGlobalMouseUp);
+    };
   }, [dragging]);
 
-  // When image loads into cache, update tray items that are missing their imageUrl
   const handleRemoveFromTray = useCallback((id) => {
     setTrayItems(prev => prev.filter(p => p.id !== id));
   }, []);
@@ -344,7 +386,6 @@ export default function GraphCanvas({ token, refreshTrigger }) {
       ref={containerRef}
       style={{ width: '100%', height: '100vh', position: 'relative', overflow: 'hidden', background: '#050505' }}
       onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
     >
       {loading && (
         <div style={{ position: 'absolute', top: 20, left: 20, color: 'white', zIndex: 10 }}>

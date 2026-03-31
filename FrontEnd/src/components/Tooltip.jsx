@@ -34,7 +34,7 @@ export default function Tooltip({ data, x, y, imageUrl, inTray }) {
         )}
       </div>
       <div style={styles.hint}>
-        {inTray ? '✓ In tray — drag to remove' : 'Drag to tray to export'}
+        {inTray ? '✓ In tray — click ✕ to remove' : 'Drag to tray to export'}
       </div>
     </div>
   );

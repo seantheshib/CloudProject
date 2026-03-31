@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any
 from auth.cognito import get_current_user
 from services.s3_service import generate_presigned_url
+from services.database import get_db, ImageMetadata
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,10 +17,17 @@ def get_image_url(
 ) -> Dict[str, Any]:
     """
     Returns a fresh presigned S3 URL for the given image key.
-    The image_id must belong to the requesting user.
+    Ownership is verified against the database so this check remains
+    correct regardless of the S3 key structure.
     """
-    parts = image_id.split('/')
-    if len(parts) < 2 or parts[1] != user_id:
+    with get_db() as db:
+        record = db.query(ImageMetadata).filter(
+            ImageMetadata.image_id == image_id
+        ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Image not found")
+    if record.user_id != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     try:
