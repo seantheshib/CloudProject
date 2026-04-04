@@ -1,0 +1,13 @@
+{
+  "PolicyName": "cloudgraph-asg-cpu-target-tracking",
+  "PolicyType": "TargetTrackingScaling",
+  "TargetTrackingScalingPolicyConfiguration": {
+    "TargetValue": 60.0,
+    "PredefinedMetricSpecification": {
+      "PredefinedMetricType": "ASGAverageCPUUtilization"
+    },
+    "ScaleInCooldown": 300,
+    "ScaleOutCooldown": 60,
+    "DisableScaleIn": false
+  }
+}

@@ -9,7 +9,7 @@ from urllib.parse import unquote_plus
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services.database import get_db, ImageMetadata
+from services.database import get_db, ImageMetadata, set_rls_user
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -117,11 +117,12 @@ def lambda_handler(event: dict, context) -> dict:
                 logger.info(f"Uploaded thumbnail: {thumb_key}")
 
                 with get_db() as session:
-                    db_record = session.query(ImageMetadata).filter(
-                        ImageMetadata.image_id == key
-                    ).first()
-                    if db_record:
-                        db_record.thumbnail_key = thumb_key
+                    with set_rls_user(session, user_id):
+                        db_record = session.query(ImageMetadata).filter(
+                            ImageMetadata.image_id == key
+                        ).first()
+                        if db_record:
+                            db_record.thumbnail_key = thumb_key
 
         except Exception as e:
             # Log the error but continue processing remaining records in the batch.

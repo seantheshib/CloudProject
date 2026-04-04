@@ -11,7 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.exif_service import extract_exif_metadata
 from services.dynamo_service import save_image_metadata
-from services.database import get_db, ImageMetadata
+from services.database import get_db, ImageMetadata, set_rls_user
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -102,11 +102,12 @@ def lambda_handler(event: dict, context) -> dict:
             # Update the status column from 'pending' → 'processed'
             # (set during batch-presign; marks that EXIF extraction succeeded)
             with get_db() as session:
-                row = session.query(ImageMetadata).filter(
-                    ImageMetadata.image_id == key
-                ).first()
-                if row:
-                    row.status = 'processed'
+                with set_rls_user(session, user_id):
+                    row = session.query(ImageMetadata).filter(
+                        ImageMetadata.image_id == key
+                    ).first()
+                    if row:
+                        row.status = 'processed'
 
             logger.info(f"Successfully processed: {key}")
 

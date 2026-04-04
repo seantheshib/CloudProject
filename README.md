@@ -324,65 +324,50 @@ BackEnd/
 2. Select **PostgreSQL** as the engine (or **Aurora PostgreSQL** for production)
 3. Choose a `db.t3.micro` instance for development
 4. Note down your **endpoint**, **port**, **username**, and **password**
-5. Make sure its **Security Group** allows inbound connections on port `5432` from your ECS task security group
+5. Make sure its **Security Group** allows inbound connections on port `5432` from **both** your ECS task security group AND your local computer's IP address (so you can run the table creation script locally).
 
-#### 4. Amazon SQS (Upload Buffering)
-1. Deploy the SQS queue using the provided Terraform config:
-```bash
-cd BackEnd/infra
-terraform init && terraform apply
-```
-Or follow the manual AWS CLI instructions in `BackEnd/scripts/setup_lambda_triggers.py`.
+#### 4. Amazon SNS & SQS (Upload Buffering)
+1. Open the **AWS SNS Console** → **Create topic** (Standard). Name it `cloudgraph-uploads-topic`.
+2. Open the **AWS SQS Console** → **Create queue**. Name it `cloudgraph-image-processing-dlq`.
+3. Create another queue named `cloudgraph-image-processing` (Visibility timeout: 300s). For the **Redrive policy**, select your DLQ and set Maximum receives to 3.
+4. Subscribe the `cloudgraph-image-processing` queue to the `cloudgraph-uploads-topic` SNS topic.
+5. In the **AWS S3 Console**, go to your bucket → **Properties** → **Event notifications**. Create an event for `s3:ObjectCreated:*` with prefix `uploads/` and select your SNS topic as the destination.
 
 ---
 
-### Phase 2: Backend & Lambdas (ECS Fargate)
+### Phase 2: Backend & Lambdas (EC2 Auto Scaling)
 
 #### 1. Serverless Lambda Workers
-1. Create 2 empty Lambda functions in the AWS Console: `thumbnail_generator` and `image_processor`. Choose **Python 3.10+** as the runtime
-2. Give their IAM Execution Roles permission to read/write S3, and access your RDS database
-3. Deploy from your local machine:
-```bash
-cd BackEnd
-chmod +x scripts/deploy_lambda.sh
-bash scripts/deploy_lambda.sh
+1. Create **3 empty Lambda functions** in the AWS Console: `thumbnail_generator`, `image_processor`, and `clustering_processor`. Choose **Python 3.10+**.
+2. **Execution Role:** If you are on a Student Account (AWS Academy/Vocareum), select the existing **`LabRole`**. Do NOT try to create a new role, as your permissions are likely restricted.
+3. In the AWS Lambda Console for each function, click **Upload from > .zip file**. Use the files in `BackEnd/deploy_zips/`.
+4. On the function pages for `image_processor` and `thumbnail_generator`, click **Add trigger** → select **SQS**, point it to `cloudgraph-image-processing`.
+5. Set **Reserved concurrency** on `clustering_processor` to **10**.
+
+#### 2. FastAPI Core Server (EC2 Auto Scaling Group)
+
+1. **IAM Role:** If you are on a Student Account, select the existing **`LabRole`** (or `LabInstanceProfile`) when configuring the Launch Template. This role already has the necessary permissions for S3, RDS, and CloudWatch.
+2. **Target Group:** Create a Target Group (Type: Instance, Port: 8000). Set the health check path to `/health`.
+3. **Load Balancer:** Create an Application Load Balancer (ALB) and add a listener on port 80 (or 443) that forwards to your Target Group.
+4. **Launch Template:** Create a Launch Template for your EC2 instances:
+   - **AMI:** Ubuntu 22.04 LTS.
+   - **Instance Type:** `t3.micro` or similar.
+   - **User Data:** Paste the contents of `BackEnd/scripts/setup_ec2.sh`. Update the placeholders (`REPO_URL`, `DATABASE_URL`, etc.) with your actual values.
+5. **Auto Scaling Group (ASG):** Create an ASG using your Launch Template:
+   - Select your VPC and subnets.
+   - Attach it to the existing Load Balancer / Target Group.
+   - Set **Desired capacity** to 1, **Minimum** to 1, and **Maximum** to 10.
+6. **Scaling Policy:** In the ASG **Automatic scaling** tab, add a **Target tracking scaling policy**:
+   - **Metric type:** Average CPU utilization.
+   - **Target value:** 60.
+   - **Instances need:** 300 seconds to warm up.
+
+#### 3. Database Migration
+Connect to your RDS instance and execute the SQL DDL. Enforce RLS:
+```sql
+ALTER TABLE image_metadata ENABLE ROW LEVEL SECURITY;
+CREATE POLICY user_isolation ON image_metadata USING (user_id = current_setting('app.current_user_id', true));
 ```
-4. In the AWS Console, set the **Handler** for each Lambda to `image_processor.lambda_handler` and `thumbnail_generator.lambda_handler`
-5. Add an **SQS event source mapping** to each Lambda pointing at the `cloudgraph-image-processing` queue with `BatchSize=10` and `ReportBatchItemFailures` enabled (see `scripts/setup_lambda_triggers.py` for CLI commands)
-6. Set reserved concurrency on `clustering_processor` to **10** to prevent runaway DBSCAN jobs
-
-#### 2. FastAPI Core Server (Amazon ECS Fargate)
-
-> **Note:** ECS Fargate runs your Docker container without managing EC2 instances. Credentials are provided automatically via the Task IAM Role — do not use static credentials.
-
-1. Build and push the Docker image to ECR, then deploy to ECS:
-```bash
-cd BackEnd
-chmod +x infra/ecs-deploy.sh
-bash infra/ecs-deploy.sh
-```
-(Update the variable placeholders in `ecs-deploy.sh` before running.)
-
-2. Create the database tables:
-```bash
-# Run locally against your RDS instance, or exec into the ECS task
-python BackEnd/scripts/setup_database.py
-```
-This also enables **Row Level Security** on both tables.
-
-3. Create an `.env` file for local development only (not needed on ECS):
-```env
-AWS_REGION="us-east-1"
-S3_BUCKET_NAME="cloudgraph-uploads-xyz"
-AWS_LAMBDA_FUNCTION_NAME="cloudgraph-cluster-processor"
-DATABASE_URL="postgresql://user:password@your-rds-endpoint.rds.amazonaws.com:5432/cloudgraph"
-COGNITO_REGION="us-east-1"
-COGNITO_USER_POOL_ID="us-east-1_xxxxx"
-COGNITO_APP_CLIENT_ID="xxxxxxxxx"
-```
-
-4. Set up auto-scaling (optional but recommended):
-See `BackEnd/infra/ecs-autoscaling.json` for CLI commands to apply CPU target tracking.
 
 ---
 
@@ -431,7 +416,7 @@ const { succeeded, failed } = await bulkUpload(
 #### 1. Update the API Base URL
 In `FrontEnd/src/api.js`, point the app at your live ECS backend:
 ```javascript
-export const API_BASE = 'https://YOUR-ECS-SERVICE-URL/api';
+export const API_BASE = 'https://YOUR-ALB-DNS-NAME/api';
 ```
 
 #### 2. Deploy to AWS Amplify

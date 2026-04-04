@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from services.database import get_db, ImageMetadata
+from services.database import get_db, ImageMetadata, set_rls_user
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,15 +16,16 @@ def save_image_metadata(
     """
     try:
         with get_db() as session:
-            record = ImageMetadata(
-                image_id=image_id,
-                user_id=user_id,
-                uploaded_at=datetime.now(timezone.utc).isoformat(),
-                date_taken=date_taken,
-                gps_lat=gps_lat,
-                gps_lon=gps_lon,
-            )
-            session.merge(record)
+            with set_rls_user(session, user_id):
+                record = ImageMetadata(
+                    image_id=image_id,
+                    user_id=user_id,
+                    uploaded_at=datetime.now(timezone.utc).isoformat(),
+                    date_taken=date_taken,
+                    gps_lat=gps_lat,
+                    gps_lon=gps_lon,
+                )
+                session.merge(record)
 
     except Exception as e:
         logger.error(f"Database error while saving metadata for {image_id}: {e}")

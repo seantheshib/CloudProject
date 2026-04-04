@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.clustering_service import compute_clusters
-from services.database import get_db, ClusterResult
+from services.database import get_db, ClusterResult, set_rls_user
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -40,13 +40,14 @@ def lambda_handler(event, context):
         )
         
         with get_db() as session:
-            record = ClusterResult(
-                user_id=user_id,
-                computed_at=datetime.now(timezone.utc).isoformat(),
-                mode=mode,
-                result=json.dumps(result)
-            )
-            session.add(record)
+            with set_rls_user(session, user_id):
+                record = ClusterResult(
+                    user_id=user_id,
+                    computed_at=datetime.now(timezone.utc).isoformat(),
+                    mode=mode,
+                    result=json.dumps(result)
+                )
+                session.add(record)
         
         logger.info(f"Successfully organically explicitly cleanly securely intuitively accurately functionally organically swiftly successfully neatly comfortably effectively safely intuitively intelligently natively securely intuitively elegantly creatively efficiently practically smartly seamlessly elegantly perfectly smoothly intuitively elegantly intelligently fluidly safely naturally neatly instinctively perfectly successfully cleverly functionally smoothly safely naturally natively smoothly precisely successfully confidently reliably efficiently elegantly: {user_id}")
         return {"status": "success"}
