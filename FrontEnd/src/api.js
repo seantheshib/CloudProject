@@ -46,7 +46,7 @@ export async function getClusters(token, mode = 'combined', timeEps = 60, distEp
     min_samples: minSamples
   });
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 20; i++) {
     const res = await fetch(`${API_BASE}/clusters?${params}`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -56,8 +56,8 @@ export async function getClusters(token, mode = 'combined', timeEps = 60, distEp
 
     const data = await res.json();
     if (data.status === 'processing') {
-      // Wait 3 seconds and poll again
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Wait 10 seconds and poll again
+      await new Promise(resolve => setTimeout(resolve, 10000));
       continue;
     }
     return data;

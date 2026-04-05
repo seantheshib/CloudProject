@@ -167,6 +167,11 @@ def compute_clusters(user_id: str, mode: str = "combined", time_eps_minutes: int
     # Serialization Layer Mapping cleanly into REST Dict Responses properly
     clusters_out = []
     
+    # --- Phase: Labeling and Geocoding (Optimized) ---
+    # We group clusters by approximate location to avoid redundant cross-internet geocoding calls.
+    clusters_out = []
+    location_names = {} # Local loop cache for city names
+
     for label_id, c_data in cluster_map.items():
         photo_ids = c_data["items"]
         if len(photo_ids) < min_samples:
@@ -176,11 +181,22 @@ def compute_clusters(user_id: str, mode: str = "combined", time_eps_minutes: int
         c_lat = sum(c_data["lats"]) / len(c_data["lats"]) if c_data["lats"] else None
         c_lon = sum(c_data["lons"]) / len(c_data["lons"]) if c_data["lons"] else None
         
-        city = get_city_name(c_lat, c_lon) if c_lat is not None and c_lon is not None else None
+        # Round to 2 decimals (~1km grid) to group nearby clusters under one geocode request
+        loc_key = f"{round(c_lat, 2):.2f},{round(c_lon, 2):.2f}" if c_lat is not None else None
+        
+        if loc_key and loc_key in location_names:
+            city = location_names[loc_key]
+        elif c_lat is not None and c_lon is not None:
+            logger.info(f"Geocoding new cluster location: {loc_key}")
+            city = get_city_name(c_lat, c_lon)
+            location_names[loc_key] = city
+        else:
+            city = None
+
         date_label = max(set(c_data["dates"]), key=c_data["dates"].count) if c_data["dates"] else "Unknown Date"
         
         if city and city != "Unknown Location":
-            human_label = f"{date_label} \\u00b7 {city}"
+            human_label = f"{date_label} \u00b7 {city}"
         else:
             human_label = date_label
             

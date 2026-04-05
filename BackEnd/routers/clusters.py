@@ -33,8 +33,10 @@ async def get_clusters(
                 .count()
             )
 
-            # 2. Check sync vs async threshold
-            if items_count < 0:
+            # 2. Check sync vs async threshold.
+            # Small sets (<50) are computed synchronously to avoid Lambda cold start overhead.
+            if items_count < 50:
+                logger.info(f"Computing clusters synchronously for {items_count} items")
                 return compute_clusters(user_id, mode, time_eps_minutes, distance_eps_km, min_samples)
 
             # 3. Check for a fresh cached ClusterResult
