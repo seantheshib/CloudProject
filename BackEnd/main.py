@@ -5,6 +5,9 @@ from routers import upload, graph, clusters, image
 from contextlib import asynccontextmanager
 from services.database import Base, get_engine
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Auto-create tables on startup (idempotent, only runs if they don't exist)
@@ -42,3 +45,17 @@ app.include_router(image.router, prefix="/api")
 def health_check():
     """Health check endpoint to ensure API is running."""
     return {"status": "ok"}
+
+
+@app.options("/{full_path:path}")
+async def preflight_handler(full_path: str, request: Request):
+    return JSONResponse(
+        status_code=200,
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "http://localhost:3000",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Allow-Credentials": "true"
+        }
+    )
