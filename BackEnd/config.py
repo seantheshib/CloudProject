@@ -3,10 +3,10 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    # On ECS Fargate, credentials are provided automatically via the Task IAM Role.
-    # Do not use static credentials — boto3 picks them up from the instance metadata service.
-    # For local development, use `aws sso login` or a named AWS profile.
+    AWS_ACCESS_KEY_ID: str
+    AWS_SECRET_ACCESS_KEY: str
     AWS_REGION: str
+
     S3_BUCKET_NAME: str
     AWS_LAMBDA_FUNCTION_NAME: str
 
