@@ -9,11 +9,7 @@ def get_lambda_client():
     settings = get_settings()
     return boto3.client(
         'lambda',
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        aws_session_token=settings.AWS_SESSION_TOKEN,
-        region_name=settings.AWS_REGION
-    )
+         region_name=settings.AWS_REGION)
 
 def invoke_clustering_lambda(user_id: str, mode: str, time_eps_minutes: int, distance_eps_km: float, min_samples: int):
     """
