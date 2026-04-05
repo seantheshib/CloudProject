@@ -90,7 +90,7 @@ A FastAPI backend handling authenticated photo uploads, automated EXIF extractio
 Client
   │
   ▼
-FastAPI (ECS Fargate)
+FastAPI (EC2 Auto Scaling)
   │
   ├── POST /api/upload ──────────► S3 Bucket (uploads/{user_id}/{uuid}.ext)
   │                                       │
@@ -113,7 +113,7 @@ FastAPI (ECS Fargate)
                                     └── (large jobs) → Lambda async → SQL cache
 ```
 
-**AWS services used:** S3, SNS, SQS, Lambda, Cognito, RDS (PostgreSQL), ECS Fargate, ECR
+**AWS services used:** S3, SNS, SQS, Lambda, Cognito, RDS (PostgreSQL)
 
 ---
 
@@ -282,7 +282,7 @@ BackEnd/
 │   └── clusters.py                # GET /api/clusters
 ├── services/
 │   ├── database.py                # SQLAlchemy engine, models, session context
-│   ├── dynamo_service.py          # save_image_metadata() (writes to SQL)
+│   ├── metadata_service.py        # save_image_metadata() (writes to PostgreSQL)
 │   ├── s3_service.py              # S3 upload + presigned URL generation
 │   ├── lambda_service.py          # invoke_clustering_lambda()
 │   ├── graph_service.py           # build_graph() — Haversine + time edge logic
@@ -293,9 +293,8 @@ BackEnd/
 │   ├── thumbnail_generator.py     # S3-triggered thumbnail generation
 │   └── clustering_processor.py    # Async Lambda DBSCAN worker
 ├── scripts/
-│   ├── setup_database.py          # Creates SQL tables (run once)
-│   ├── setup_lambda_triggers.py   # Prints S3 trigger config instructions
-│   └── deploy_lambda.sh           # Zips and deploys Lambda functions
+│   ├── setup_database.py          # Creates SQL tables manually (optional)
+│   └── deploy_lambda.py           # Python script to package and deploy Lambdas
 └── utils/
     ├── geo.py                     # Haversine distance formula
     └── geocode.py                 # Nominatim reverse geocoding
@@ -400,7 +399,7 @@ CloudGraph handles batches of up to **500 images** at once using a high-performa
 ### Phase 3: React Frontend (AWS Amplify)
 
 #### 1. Update the API Base URL
-In `FrontEnd/src/api.js`, point the app at your live ECS backend:
+In `FrontEnd/src/api.js`, point the app at your live EC2 backend:
 ```javascript
 export const API_BASE = 'https://YOUR-ALB-DNS-NAME/api';
 ```

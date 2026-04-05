@@ -1,4 +1,4 @@
-export const API_BASE = 'CloudGraph-LoadBalancer-51588075.us-east-1.elb.amazonaws.com';
+export const API_BASE = import.meta.env.VITE_API_BASE;
 
 export async function uploadPhoto(token, file) {
   const formData = new FormData();

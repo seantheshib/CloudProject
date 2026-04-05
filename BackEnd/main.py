@@ -19,7 +19,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="CloudGraph API",
-    description="Backend for CloudGraph photo management platform",
+    description="Backend for CloudGraph photo management platform", 
     version="1.0.0",
     lifespan=lifespan
 )
@@ -27,7 +27,7 @@ app = FastAPI(
 # Allow CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://main.d18ukzwwt4zhd.amplifyapp.com"],  # Your Amplify frontend, Change as Needed
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

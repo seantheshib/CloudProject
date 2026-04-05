@@ -228,7 +228,7 @@ BackEnd/
 ├── scripts/
 │   ├── setup_database.py          # Creates SQL tables manually (optional)
 │   ├── setup_ec2.sh               # User Data script for automated EC2 setup
-│   └── deploy_lambda.sh           # Zips and deploys Lambda functions
+│   └── deploy_lambda.py           # Python script to package and deploy Lambdas
 │
 └── utils/
     ├── geo.py                     # Haversine distance formula
@@ -283,8 +283,7 @@ In the AWS Console, navigate to your S3 bucket and attach `s3:ObjectCreated:*` t
 
 ### 5. Deploy Lambda Functions
 ```bash
-chmod +x scripts/deploy_lambda.sh
-./scripts/deploy_lambda.sh
+python scripts/deploy_lambda.py
 ```
 
 ### 6. Run the FastAPI Server (local)
